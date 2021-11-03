@@ -24,6 +24,9 @@
 import flask
 from flask import Flask, request
 import json
+from flask.json import jsonify
+
+from werkzeug.utils import redirect
 app = Flask(__name__)
 app.debug = True
 
@@ -36,6 +39,7 @@ app.debug = True
 class World:
     def __init__(self):
         self.clear()
+        self.queue = []
         
     def update(self, entity, key, value):
         entry = self.space.get(entity,dict())
@@ -43,7 +47,13 @@ class World:
         self.space[entity] = entry
 
     def set(self, entity, data):
-        self.space[entity] = data
+        if (("x" in data) and ("y" in data)):
+            self.space[entity] = data
+            self.queue.append(entity)
+
+        if (len(self.queue) >= 100):
+            entity = self.queue.pop(0)
+            self.space.pop(entity, [])
 
     def clear(self):
         self.space = dict()
@@ -74,27 +84,31 @@ def flask_post_json():
 @app.route("/")
 def hello():
     '''Return something coherent here.. perhaps redirect to /static/index.html '''
-    return None
+    return redirect("./static/index.html", code=302)
 
 @app.route("/entity/<entity>", methods=['POST','PUT'])
 def update(entity):
     '''update the entities via this interface'''
-    return None
+    data = flask_post_json()
+    for key, value in data.items():
+        myWorld.update(entity, key, value)
+    return flask.jsonify(myWorld.get(entity))
 
 @app.route("/world", methods=['POST','GET'])    
 def world():
     '''you should probably return the world here'''
-    return None
+    return flask.jsonify(myWorld.world())
 
 @app.route("/entity/<entity>")    
 def get_entity(entity):
     '''This is the GET version of the entity interface, return a representation of the entity'''
-    return None
+    return flask.jsonify(myWorld.get(entity))
 
 @app.route("/clear", methods=['POST','GET'])
 def clear():
     '''Clear the world out!'''
-    return None
+    myWorld.clear()
+    return ''
 
 if __name__ == "__main__":
     app.run()

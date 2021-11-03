@@ -25,6 +25,7 @@
   <body bgcolor="black" height="100%" width="100%"> 
     <canvas id="c" width="100%" height="100%" style="-webkit-tap-highlight-color: transparent;"></canvas> 
     <script>
+
 var canvas = document.getElementById('c');
 var host = window.location.host;
 var context = canvas.getContext("2d");
@@ -40,6 +41,7 @@ function sendJSONXMLHTTPRequest(url, objects, callback) {
                 if (xhr.status==200) {
                     //XXX: parse some JSON from the request!
                     //XXX: Pass the data to the callback!
+                    callback(xhr.response);
                 }
             } 
             catch(e) {
@@ -50,10 +52,23 @@ function sendJSONXMLHTTPRequest(url, objects, callback) {
     //XXX: POST to a URL
     //XXX: set the mimetype and the accept headers!
     // Remember to use application/json !
+    xhr.open(objects["method"], url);
+    if (objects["method"] != "GET"){
+        xhr.setRequestHeader("Content-Type", "application/json");
+    }
+    xhr.setRequestHeader("Accept", "application/json");
+    //xhr.setRequestHeader("Host", "127.0.0.1:5000")
+    xhr.overrideMimeType("application/json");
+    xhr.send(objects["send"]);
+
 }
 
 
 world = {};
+queue = {};
+colorIndex = 0;
+//colorSet = ['#ff0000', '#ff4000', '#ff8000', '#ffbf00', '#ffff00','#bfff00', '#80ff00', '#40ff00', '#00ff00', '#00ff40', '#00ff80', '#00ffbf', '#00ffff', '#00bfff', '#0080ff', '#0040ff', '#0000ff', '#4000ff', '#8000ff', '#bf00ff', '#ff00ff', '   #ff00bf', '#ff0080', '#ff0040', '#ff0000'];
+colorSet = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
 
 //XXX: TODO Make this prettier!
 function drawCircle(context,entity) {
@@ -65,7 +80,19 @@ function drawCircle(context,entity) {
         //moveTo(x,y);
         fillStyle = entity["colour"];
         strokeStyle = fillStyle;
-        arc(x, y, (entity["radius"])?entity["radius"]:50, 0, 2.0 * Math.PI, false);  
+        //arc(x, y, (entity["radius"])?entity["radius"]:50, 0, 2.0 * Math.PI, false);  
+
+        //draw the graph
+        arc(x, y, 40, 0, Math.PI*2, false);
+        moveTo(x, y-20);
+        arc(x, y-20, 1, 0, Math.PI*2, true);
+        moveTo(x, y);
+        arc(x, y-20, 20, Math.PI*0.5, 1.5*Math.PI, true);
+        moveTo(x, y+20);
+        arc(x, y+20, 1, 0, Math.PI*2, true);
+        moveTo(x, y);
+        arc(x, y+20, 20, Math.PI*1.5, Math.PI*0.5, true);
+
         stroke();                                
     }
 }
@@ -136,9 +163,17 @@ function getPosition(e) {
 
 function addEntity(entity, data) {
     world[entity] = data;
+    queue[entity] = data;
     drawNextFrame(); // (but should we?)
     //XXX: Send a XHTML Request that updates the entity you just  modified!
-
+    /*
+    var url = "http://127.0.0.1:5000/entity/" + entity;
+    var objects =  {"method": "PUT", "send": JSON.stringify(data)};
+    var callback = function(data) {
+        return;
+    };
+    sendJSONXMLHTTPRequest(url, objects, callback);
+    */
 }
 
 var counter = 0;
@@ -247,27 +282,56 @@ mouse = (function() {
 // Add the application specific mouse listeners!
 //XXX: TODO Make these prettier!
 mouse.mousedowners.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'blue'});
+    var color = colorSet[colorIndex];
+    colorIndex+=1;
+    colorIndex = (colorIndex)%colorSet.length;
+    addEntityWithoutName({'x':x,'y':y,'colour':color});
 });
 
 mouse.mouseuppers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'red'});
+    var color = colorSet[colorIndex];
+    colorIndex+=1;
+    colorIndex = (colorIndex)%colorSet.length;
+    addEntityWithoutName({'x':x,'y':y,'colour':color});
 });
 
 mouse.mousedraggers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'green',
+    var color = colorSet[colorIndex];
+    colorIndex+=1;
+    colorIndex = (colorIndex)%colorSet.length;
+    addEntityWithoutName({'x':x,'y':y,'colour':color,
                           'radius':10});
 });
 
 
 function update() {
     //XXX: TODO Get the world from the webservice using a XMLHTTPRequest
+    var url = "http://127.0.0.1:5000/world";
+    var objects =  {"method": "GET", "send": ""};
+    var callback = function(data) {
+        world = JSON.parse(data);
+    };
+    sendJSONXMLHTTPRequest(url, objects, callback);
+    drawNextFrame();
     drawFrame();
+}
+
+function sendEntity(){
+    var callback = function(data) {
+        return;
+    };
+    var queueCopy = queue;
+    queue = {}
+    for (var i in queueCopy){
+        var url = "http://127.0.0.1:5000/entity/" + i;
+        var objects =  {"method": "PUT", "send": JSON.stringify(queueCopy[i])};
+        sendJSONXMLHTTPRequest(url, objects, callback);
+    }
 }
 
 // 30 frames per second
 setInterval( update, 1000/30.0);
-
+setInterval( sendEntity, 1000/30.0);
 
 
     </script>
